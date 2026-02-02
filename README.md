@@ -2,6 +2,8 @@
 
 Mounts a network share (if needed) and opens an Obsidian vault.
 
+Uses `osascript mount volume` for silent mounting—no credential dialog when credentials are saved in Keychain.
+
 ## Requirements
 
 - `jq` - for URL encoding the vault path
