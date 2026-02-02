@@ -48,7 +48,7 @@ MOUNT_POINT="/Volumes/${SHARE}"
 VAULT_PATH="${MOUNT_POINT}/${SUBPATH}"
 
 if [[ ! -d "$MOUNT_POINT" ]]; then
-  run open "$NETWORK_URL"
+  run osascript -e "mount volume \"$NETWORK_URL\""
   if [[ -z "${DRY_RUN:-}" ]]; then
     while [[ ! -d "$MOUNT_POINT" ]]; do sleep 1; done
   fi
