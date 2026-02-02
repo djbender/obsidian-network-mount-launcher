@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+run() { if [[ "${DRY_RUN:-}" ]]; then echo "[dry-run] $*"; else "$@"; fi }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<EOF
+Usage: obsidian-network-mount-launcher <smb-path>
+
+Mounts a network share (if needed) and opens an Obsidian vault.
+
+Arguments:
+  smb-path    Full SMB path to vault (e.g., smb://server.local/share/path/to/vault)
+              Can also be set via SMB_PATH env var.
+
+Environment:
+  SMB_PATH    Alternative to positional argument
+  DRY_RUN     If set, log commands instead of executing
+
+Example:
+  obsidian-network-mount-launcher "smb://nas.local/files/notes/my-vault"
+  DRY_RUN=1 obsidian-network-mount-launcher "smb://nas.local/files/notes/my-vault"
+
+Requires: jq
+EOF
+  exit 0
+fi
+
+SMB_PATH="${1:-${SMB_PATH:-smb://your-server.local/<share>/<vault-path>}}"
+
+# Parse SMB_PATH: smb://server/share/path/to/vault
+# Extract: protocol://server/share -> NETWORK_URL
+#          share/path/to/vault -> local path under /Volumes
+# e.g., smb://server.local/files/notes/vault
+#   -> NETWORK_URL: smb://server.local/files
+#   -> MOUNT_POINT: /Volumes/files
+#   -> VAULT_PATH:  /Volumes/files/notes/vault
+
+# Remove smb:// prefix, extract server and path
+WITHOUT_PROTO="${SMB_PATH#smb://}"        # server.local/files/notes/vault
+SERVER="${WITHOUT_PROTO%%/*}"             # server.local
+FULL_PATH="${WITHOUT_PROTO#*/}"           # files/notes/vault
+SHARE="${FULL_PATH%%/*}"                  # files
+SUBPATH="${FULL_PATH#*/}"                 # notes/vault
+
+NETWORK_URL="smb://${SERVER}/${SHARE}"
+MOUNT_POINT="/Volumes/${SHARE}"
+VAULT_PATH="${MOUNT_POINT}/${SUBPATH}"
+
+if [[ ! -d "$MOUNT_POINT" ]]; then
+  run open "$NETWORK_URL"
+  if [[ -z "${DRY_RUN:-}" ]]; then
+    while [[ ! -d "$MOUNT_POINT" ]]; do sleep 1; done
+  fi
+fi
+
+# URL-encode the vault path for the obsidian:// URI scheme (preserve slashes for readability)
+ENCODED=$(jq -rn --arg p "$VAULT_PATH" '$p|@uri' | sed 's/%2F/\//g')
+run open "obsidian://open?path=${ENCODED}"
